@@ -96,6 +96,21 @@ blueprint:
 
         The title of the notification.
       default: ""
+    topic_prefix:
+      name: topic_prefix
+      description: |
+        If you have multiple Frigate instances pointed to the same Frigate
+        integration, you must have unique topic_prefix and client_id in your MQTT
+        settings. The topic_prefix is used to check the proper MQTT topic. Leave at
+        default of frigate if you have not changed this in your config.
+      default: "frigate"
+    client_id:
+      name: (Optional) client_id
+      description: |
+        If you have multiple Frigate instances pointed to the same Frigate
+        integration, you must have unique topic_prefix and client_id in your MQTT
+        settings. The client_id is used in the notification to get the correct clip.
+      default: ""
     message:
       name: Notification Message
       description: |
@@ -380,14 +395,14 @@ blueprint:
         The url to open when tapping on the notification. Some presets are provided, you can also set you own. 
 
         These 7 options define the text and urls associated with the three action buttons at the bottom of the notification.
-      default: "{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4"
+      default: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/{{camera}}/clip.mp4"
       selector:
         select:
           options:
             - label: View Clip
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/{{camera}}/clip.mp4"
             - label: View Snapshot
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/snapshot.jpg"
             - label: View Stream
               value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'].lower()}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
             - label: Open Home Assistant (web)
@@ -410,14 +425,14 @@ blueprint:
     url_1:
       name: Action Button 1 URL
       description: Customise what happens when you press the first Action Button. Select from one of the preconfigured options or enter your own custom URL.
-      default: "{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4"
+      default: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/{{camera}}/clip.mp4"
       selector:
         select:
           options:
             - label: View Clip
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/{{camera}}/clip.mp4"
             - label: View Snapshot
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/snapshot.jpg"
             - label: View Stream
               value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'].lower()}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
             - label: Open Home Assistant
@@ -430,14 +445,14 @@ blueprint:
     url_2:
       name: Action Button 2 URL
       description: Customise what happens when you press the second Action Button. Select from one of the preconfigured options or enter your own custom URL.
-      default: "{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg"
+      default: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/snapshot.jpg"
       selector:
         select:
           options:
             - label: View Clip
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/{{camera}}/clip.mp4"
             - label: View Snapshot
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/snapshot.jpg"
             - label: View Stream
               value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'].lower()}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
             - label: Open Home Assistant
@@ -457,9 +472,9 @@ blueprint:
             - label: Silence New Notifications
               value: silence-{{ camera }}
             - label: View Clip
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/{{camera}}/clip.mp4"
             - label: View Snapshot
-              value: "{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg"
+              value: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/snapshot.jpg"
             - label: View Stream
               value: "{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json['after']['camera'].lower()}}?token={{state_attr( 'camera.' ~ camera, 'access_token')}}"
             - label: Open Home Assistant
@@ -544,6 +559,7 @@ mode: parallel
 trigger_variables:
   input_camera: !input camera
   camera: "{{ input_camera | replace('camera.', '') }}"
+  topic_prefix: !input topic_prefix
 trigger:
   - platform: event
     event_type: mobile_app_notification_action
@@ -551,7 +567,7 @@ trigger:
       action: "silence-{{ camera }}"
     id: silence
   - platform: mqtt
-    topic: frigate/events
+    topic: "{{ topic_prefix }}/events"
     payload: "{{ camera }}/new"
     value_template: "{{ value_json['after']['camera'] | lower | replace('-','_') }}/{{ value_json['type']}}"
     id: frigate-event
@@ -561,6 +577,8 @@ variables:
   camera_name: "{{ camera | replace('_', ' ') | title }}"
   input_base_url: !input base_url
   base_url: "{{ input_base_url.rstrip('/')}}"
+  topic_prefix: !input topic_prefix
+  client_id: !input client_id
   attachment: !input attachment
   critical_input: !input critical
   critical: "{{ true if critical_input == 'true' else false }}"
@@ -719,7 +737,7 @@ action:
                               group: "{{ camera }}-frigate-notification"
                               color: "{{color}}"
                               # Android Specific
-                              image: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg?format=android"
+                              image: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg?format=android"
                               clickAction: "{{tap_action}}"
                               ttl: "{{ iif(critical, 0, 3600000) }}"
                               priority: "{{ iif(critical, 'high', 'normal') }}"
@@ -728,7 +746,7 @@ action:
                               # iOS Specific
                               url: "{{tap_action}}"
                               attachment:
-                                url: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg"
+                                url: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg"
                               push:
                                 sound: "{{sound}}"
                                 interruption-level: "{{ iif(critical, 'critical', 'active') }}"
@@ -763,7 +781,7 @@ action:
                                 channel: "{{channel}}"
                                 # Android/Fire TV
                                 image:
-                                  url: "{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg"
+                                  url: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/snapshot.jpg"
                                 fontsize: "{{tv_size}}"
                                 position: "{{tv_position}}"
                                 duration: "{{tv_duration}}"
@@ -773,7 +791,7 @@ action:
                                 # iOS Specific
                                 url: "{{tap_action}}"
                                 attachment:
-                                  url: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg"
+                                  url: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg"
                                 push:
                                   sound: "{{sound}}"
                                 interruption-level: "{{ iif(critical, 'critical', 'active') }}"
@@ -800,7 +818,7 @@ action:
                             group: "{{ camera }}-frigate-notification{{'-loitering' if loitering}}"
                             color: "{{color}}"
                             # Android Specific
-                            image: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg?format=android"
+                            image: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg?format=android"
                             clickAction: "{{tap_action}}"
                             ttl: "{{ iif(critical, 0, 3600000) }}"
                             priority: "{{ iif(critical, 'high', 'normal') }}"
@@ -815,7 +833,7 @@ action:
                             # iOS Specific
                             url: "{{tap_action}}"
                             attachment:
-                              url: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg"
+                              url: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg"
                             push:
                               sound: "{{sound}}"
                               interruption-level: "{{ iif(critical, 'critical', 'active') }}"
@@ -836,7 +854,7 @@ action:
               sequence:
                 - wait_for_trigger:
                     - platform: mqtt
-                      topic: frigate/events
+                      topic: "{{ topic_prefix }}/events"
                       payload: "{{ id }}"
                       value_template: "{{ value_json['after']['id'] }}"
                   timeout:
@@ -901,7 +919,7 @@ action:
                                   multi-zone filter: {{'OFF' if not zone_only or not zone_multi else 'ON'}} - {{'PASS' if not zone_only or not zone_multi or ( entered_zones|length and zones and zones |reject('in', entered_zones) |list |length == 0 ) else 'FAIL'}}, 
                                   state filter TEST: {{'ON' if state_only else 'OFF'}} - {{'PASS' if state_true else 'FAIL'}}
 
-                                  image: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg"
+                                  image: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg"
                 - alias: "Notify on loitering or significant change"
                   choose:
                     - conditions: "{{ loitering or (not home and zone_filter and zone_multi_filter and state_true and (new_snapshot or presence_changed or stationary_moved or zone_only_changed or entered_zones_changed or sub_label_changed)) }}"
@@ -919,7 +937,7 @@ action:
                                     group: "{{ camera }}-frigate-notification{{'-loitering' if loitering}}"
                                     color: "{{color}}"
                                     # Android Specific
-                                    image: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg?format=android"
+                                    image: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg?format=android"
                                     clickAction: "{{tap_action}}"
                                     ttl: "{{ iif(critical, 0, 3600000) }}"
                                     priority: "{{ iif(critical, 'high', 'normal') }}"
@@ -929,7 +947,7 @@ action:
                                     # iOS Specific
                                     url: "{{tap_action}}"
                                     attachment:
-                                      url: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg"
+                                      url: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg"
                                     push:
                                       sound: "{{ iif(update, 'none', sound) }}"
                                       interruption-level: "{{ iif(critical, 'critical', 'active') }}"
@@ -965,7 +983,7 @@ action:
                                       channel: "{{channel}}"
                                       # Android/Fire TV
                                       image:
-                                        url: "{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg"
+                                        url: "{{base_url}}/api/frigate/{{ client_id }}/notifications/{{id}}/snapshot.jpg"
                                       fontsize: "{{tv_size}}"
                                       position: "{{tv_position}}"
                                       duration: "{{tv_duration}}"
@@ -975,7 +993,7 @@ action:
                                       # iOS Specific
                                       url: "{{tap_action}}"
                                       attachment:
-                                        url: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg"
+                                        url: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg"
                                       push:
                                         sound: "{{ iif(update, 'none', sound) }}"
                                       interruption-level: "{{ iif(critical, 'critical', 'active') }}"
@@ -1002,7 +1020,7 @@ action:
                                   group: "{{ camera }}-frigate-notification{{'-loitering' if loitering}}"
                                   color: "{{color}}"
                                   # Android Specific
-                                  image: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg?format=android"
+                                  image: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg?format=android"
                                   clickAction: "{{tap_action}}"
                                   ttl: "{{ iif(critical, 0, 3600000) }}"
                                   priority: "{{ iif(critical, 'high', 'normal') }}"
@@ -1018,7 +1036,7 @@ action:
                                   # iOS Specific
                                   url: "{{tap_action}}"
                                   attachment:
-                                    url: "/api/frigate/notifications/{{id}}/{{attachment}}.jpg"
+                                    url: "/api/frigate/{{ client_id }}/notifications/{{id}}/{{attachment}}.jpg"
                                   push:
                                     sound: "{{ iif(update, 'none', sound) }}"
                                     interruption-level: "{{ iif(critical, 'critical', 'active') }}"
